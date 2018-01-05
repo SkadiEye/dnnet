@@ -1,0 +1,14 @@
+Package: dnnet
+Type: Package
+Title: Deep Neural Nets
+Version: 0.1.0
+Author@R: person("Xinlei", "Mi", email = "xlmi@ufl.edu", role = c("aut", "cre"))
+Author: Xinlei Mi [aut, cre]
+Maintainer: Xinlei Mi <xlmi@ufl.edu>
+Description: Multilayer Perceptrons
+License: GPL-2
+Encoding: UTF-8
+LazyData: true
+Depends: R (>= 3.4.0)
+LinkingTo: Rcpp, RcppArmadillo
+Imports: Rcpp

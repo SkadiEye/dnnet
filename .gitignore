@@ -1,0 +1,13 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+src/*.o
+src/*.so
+src/*.dll
+.dropbox
+anRpackage/DESCRIPTION
+anRpackage/man/anRpackage-package.Rd
+anRpackage/man/rcpparma_hello_world.Rd
+anRpackage/NAMESPACE
+anRpackage/R/RcppExports.R
