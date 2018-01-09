@@ -7,8 +7,8 @@
 using namespace Rcpp;
 
 // backprop
-SEXP backprop(NumericVector n_hidden, double w_ini, NumericMatrix x, NumericVector y, NumericVector w, bool valid, NumericMatrix x_valid, NumericVector y_valid, NumericVector w_valid, Function activate, Function activate_, int n_epoch, int n_batch, char model_type, double learning_rate, double l1_reg, double l2_reg, int early_stop_det);
-RcppExport SEXP _dnnet_backprop(SEXP n_hiddenSEXP, SEXP w_iniSEXP, SEXP xSEXP, SEXP ySEXP, SEXP wSEXP, SEXP validSEXP, SEXP x_validSEXP, SEXP y_validSEXP, SEXP w_validSEXP, SEXP activateSEXP, SEXP activate_SEXP, SEXP n_epochSEXP, SEXP n_batchSEXP, SEXP model_typeSEXP, SEXP learning_rateSEXP, SEXP l1_regSEXP, SEXP l2_regSEXP, SEXP early_stop_detSEXP) {
+SEXP backprop(NumericVector n_hidden, double w_ini, NumericMatrix x, NumericVector y, NumericVector w, bool valid, NumericMatrix x_valid, NumericVector y_valid, NumericVector w_valid, std::string activ, int n_epoch, int n_batch, std::string model_type, double learning_rate, double l1_reg, double l2_reg, int early_stop_det, std::string learning_rate_adaptive, double rho, double epsilon, double beta1, double beta2);
+RcppExport SEXP _dnnet_backprop(SEXP n_hiddenSEXP, SEXP w_iniSEXP, SEXP xSEXP, SEXP ySEXP, SEXP wSEXP, SEXP validSEXP, SEXP x_validSEXP, SEXP y_validSEXP, SEXP w_validSEXP, SEXP activSEXP, SEXP n_epochSEXP, SEXP n_batchSEXP, SEXP model_typeSEXP, SEXP learning_rateSEXP, SEXP l1_regSEXP, SEXP l2_regSEXP, SEXP early_stop_detSEXP, SEXP learning_rate_adaptiveSEXP, SEXP rhoSEXP, SEXP epsilonSEXP, SEXP beta1SEXP, SEXP beta2SEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -21,22 +21,26 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< NumericMatrix >::type x_valid(x_validSEXP);
     Rcpp::traits::input_parameter< NumericVector >::type y_valid(y_validSEXP);
     Rcpp::traits::input_parameter< NumericVector >::type w_valid(w_validSEXP);
-    Rcpp::traits::input_parameter< Function >::type activate(activateSEXP);
-    Rcpp::traits::input_parameter< Function >::type activate_(activate_SEXP);
+    Rcpp::traits::input_parameter< std::string >::type activ(activSEXP);
     Rcpp::traits::input_parameter< int >::type n_epoch(n_epochSEXP);
     Rcpp::traits::input_parameter< int >::type n_batch(n_batchSEXP);
-    Rcpp::traits::input_parameter< char >::type model_type(model_typeSEXP);
+    Rcpp::traits::input_parameter< std::string >::type model_type(model_typeSEXP);
     Rcpp::traits::input_parameter< double >::type learning_rate(learning_rateSEXP);
     Rcpp::traits::input_parameter< double >::type l1_reg(l1_regSEXP);
     Rcpp::traits::input_parameter< double >::type l2_reg(l2_regSEXP);
     Rcpp::traits::input_parameter< int >::type early_stop_det(early_stop_detSEXP);
-    rcpp_result_gen = Rcpp::wrap(backprop(n_hidden, w_ini, x, y, w, valid, x_valid, y_valid, w_valid, activate, activate_, n_epoch, n_batch, model_type, learning_rate, l1_reg, l2_reg, early_stop_det));
+    Rcpp::traits::input_parameter< std::string >::type learning_rate_adaptive(learning_rate_adaptiveSEXP);
+    Rcpp::traits::input_parameter< double >::type rho(rhoSEXP);
+    Rcpp::traits::input_parameter< double >::type epsilon(epsilonSEXP);
+    Rcpp::traits::input_parameter< double >::type beta1(beta1SEXP);
+    Rcpp::traits::input_parameter< double >::type beta2(beta2SEXP);
+    rcpp_result_gen = Rcpp::wrap(backprop(n_hidden, w_ini, x, y, w, valid, x_valid, y_valid, w_valid, activ, n_epoch, n_batch, model_type, learning_rate, l1_reg, l2_reg, early_stop_det, learning_rate_adaptive, rho, epsilon, beta1, beta2));
     return rcpp_result_gen;
 END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_dnnet_backprop", (DL_FUNC) &_dnnet_backprop, 18},
+    {"_dnnet_backprop", (DL_FUNC) &_dnnet_backprop, 22},
     {NULL, NULL, 0}
 };
 

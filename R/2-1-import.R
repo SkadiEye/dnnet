@@ -1,9 +1,9 @@
-importData <- function(x, y, w = rep(1, length(y))) {
+importDnnet <- function(x, y, w = rep(1, length(y))) {
 
   new("dnnetInput", x=as.matrix(x), y=y, w=w)
 }
 
-getSplit <- function(split, n) {
+getSplitDnnet <- function(split, n) {
 
   if(is.numeric(split) && length(split) == 1 && split < 1)
     split <- sample(n, floor(n * split))
@@ -17,9 +17,9 @@ getSplit <- function(split, n) {
   split
 }
 
-splitData <-function(object, split) {
+splitDnnet <-function(object, split) {
 
-  split <- getSplit(split, dim(object@x)[1])
+  split <- getSplitDnnet(split, dim(object@x)[1])
 
   train <- object
   train@x <- object@x[split, ]

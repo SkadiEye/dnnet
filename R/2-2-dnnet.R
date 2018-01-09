@@ -1,12 +1,12 @@
 dnnet <- function(train, validate = NULL,
-                  norm.x = TRUE, norm.y = ifelse(is.factor(y), FALSE, TRUE),
+                  norm.x = TRUE, norm.y = ifelse(is.factor(train@y), FALSE, TRUE),
                   activate = "elu", n.hidden = c(10, 10),
                   learning.rate = ifelse(learning.rate.adaptive %in% c("adam"), 0.001, 0.01),
                   l1.reg = 0, l2.reg = 0, n.batch = 100, n.epoch = 100,
                   early.stop = ifelse(is.null(validate), FALSE, TRUE), early.stop.det = 5,
                   plot = FALSE, accel = c("rcpp", "gpu", "none")[3],
                   learning.rate.adaptive = c("constant", "adadelta", "adagrad", "momentum", "adam")[2],
-                  rho = c(0.9, 0.95, 0.99, 0.999)[3],
+                  rho = c(0.9, 0.95, 0.99, 0.999)[ifelse(learning.rate.adaptive == "momentum", 1, 3)],
                   epsilon = c(10**-10, 10**-8, 10**-6, 10**-4)[2],
                   beta1 = 0.9, beta2 = 0.999, ...) {
 
@@ -78,6 +78,7 @@ dnnet <- function(train, validate = NULL,
   # } else {
     w.ini = 0.1
   # }
+    # if(is.factor(train@y)) w.ini = 1
 
   if(accel == "gpu") {
 
@@ -98,20 +99,26 @@ dnnet <- function(train, validate = NULL,
     }
   } else if(accel == "rcpp") {
 
+    # learning.rate.adaptive.char <-
+    #   c("c", "d", "g", "m", "a")[match(learning.rate.adaptive,
+    #                                   c("constant", "adadelta", "adagrad", "momentum", "adam"))]
+
     if(!is.null(validate)) {
 
       try(result <- backprop(n.hidden, w.ini,
                              train@x, train@y, train@w, TRUE, validate@x, validate@y, validate@w,
-                             get(activate), get(paste(activate, "_", sep = '')),
-                             n.epoch, n.batch, strsplit(model.type, split = '')[[1]][1],
-                             learning.rate, l1.reg, l2.reg, early.stop.det))
+                             activate,
+                             n.epoch, n.batch, model.type,
+                             learning.rate, l1.reg, l2.reg, early.stop.det,
+                             learning.rate.adaptive, rho, epsilon, beta1, beta2))
     } else {
 
       try(result <- backprop(n.hidden, w.ini,
                              train@x, train@y, train@w, FALSE, matrix(0), matrix(0), matrix(0),
-                             get(activate), get(paste(activate, "_", sep = '')),
-                             n.epoch, n.batch, strsplit(model.type, split = '')[[1]][1],
-                             learning.rate, l1.reg, l2.reg, early.stop.det))
+                             activate,
+                             n.epoch, n.batch, model.type,
+                             learning.rate, l1.reg, l2.reg, early.stop.det,
+                             learning.rate.adaptive, rho, epsilon, beta1, beta2))
     }
   } else {
 
@@ -133,14 +140,21 @@ dnnet <- function(train, validate = NULL,
     }
   }
 
-  if(plot) try(plot(result[[3]][0:result[[4]]+1], ylab = "loss"))
+  if(plot) try(plot(result[[3]][0:result[[4]]+1]*norm$y.scale**2, ylab = "loss"))
+  if(is.na(result[[3]][1]) | is.nan(result[[3]][1])) {
+
+    min.loss <- Inf
+  } else {
+
+    min.loss <- min(result[[3]][0:result[[4]]+1])*norm$y.scale**2
+  }
 
   if(exists("result")) {
 
     return(methods::new("dnnet", norm = norm,
                         weight = result[[1]],
                         bias = result[[2]],
-                        loss = min(result[[3]][0:result[[4]]+1]),
+                        loss = min.loss,
                         label = ifelse(model.type == "regression", '', list(label))[[1]],
                         model.type = model.type,
                         model.spec = list(n.hidden = n.hidden,
@@ -417,16 +431,16 @@ dnnet.backprop.r <- function(n.hidden, w.ini,
 
       if(i == 1) {
 
-        weight.ss[[i]] <- matrix(1, n.variable, n.hidden[i])
-        bias.ss[[i]]   <- matrix(1, 1, n.hidden[i])
+        weight.ss[[i]] <- matrix(0, n.variable, n.hidden[i])
+        bias.ss[[i]]   <- matrix(0, 1, n.hidden[i])
       } else if(i == n.layer + 1) {
 
-        weight.ss[[i]] <- matrix(1, n.hidden[i-1], 1)
-        bias.ss[[i]]   <- matrix(1, 1, 1)
+        weight.ss[[i]] <- matrix(0, n.hidden[i-1], 1)
+        bias.ss[[i]]   <- matrix(0, 1, 1)
       } else {
 
-        weight.ss[[i]] <- matrix(1, n.hidden[i-1], n.hidden[i])
-        bias.ss[[i]]   <- matrix(1, 1, n.hidden[i])
+        weight.ss[[i]] <- matrix(0, n.hidden[i-1], n.hidden[i])
+        bias.ss[[i]]   <- matrix(0, 1, n.hidden[i])
       }
     }
   } else if(learning.rate.adaptive == "adadelta") {
@@ -535,30 +549,21 @@ dnnet.backprop.r <- function(n.hidden, w.ini,
 
       d_a[[n.layer + 1]] <- -(yi - y.pi) * wi / sum(wi)
       d_w[[n.layer + 1]] <- t(h[[n.layer]]) %*% d_a[[n.layer + 1]]
+      bias.grad <- (t(d_a[[n.layer + 1]]) %*% one_sample_size[[i]])
       if(learning.rate.adaptive == "momentum") {
 
-        if(i == 1 & k == 1) {
-
-          dw[[n.layer + 1]] <- d_w[[n.layer + 1]] * learning.rate
-          db[[n.layer + 1]] <- (t(d_a[[n.layer + 1]]) %*% one_sample_size[[i]]) * learning.rate
-        } else {
-
-          dw[[n.layer + 1]] <- d_w[[n.layer + 1]] * learning.rate +
-            rho * last.dw[[n.layer + 1]]
-          db[[n.layer + 1]] <- (t(d_a[[n.layer + 1]]) %*% one_sample_size[[i]]) * learning.rate +
-            rho * last.db[[n.layer + 1]]
-        }
-      } else if (learning.rate.adaptive == "constant") {
-
-        dw[[n.layer + 1]] <- d_w[[n.layer + 1]] * learning.rate
-        db[[n.layer + 1]] <- (t(d_a[[n.layer + 1]]) %*% one_sample_size[[i]]) * learning.rate
+        last.dw[[n.layer + 1]] <- last.dw[[n.layer + 1]] * rho + d_w[[n.layer + 1]] * learning.rate
+        last.db[[n.layer + 1]] <- last.db[[n.layer + 1]] * rho + bias.grad * learning.rate
+        dw[[n.layer + 1]] <- last.dw[[n.layer + 1]]
+        db[[n.layer + 1]] <- last.db[[n.layer + 1]]
       } else if (learning.rate.adaptive == "adagrad") {
 
+        weight.ss[[n.layer + 1]] <- weight.ss[[n.layer + 1]] + d_w[[n.layer + 1]]**2
+        bias.ss[[n.layer + 1]]   <- bias.ss[[n.layer + 1]]   + bias.grad**2
         dw[[n.layer + 1]] <- d_w[[n.layer + 1]]/sqrt(weight.ss[[n.layer + 1]] + epsilon) * learning.rate
-        db[[n.layer + 1]] <- (t(d_a[[n.layer + 1]]) %*% one_sample_size[[i]])/sqrt(bias.ss[[n.layer + 1]] + epsilon) * learning.rate
+        db[[n.layer + 1]] <- bias.grad/sqrt(bias.ss[[n.layer + 1]] + epsilon) * learning.rate
       } else if (learning.rate.adaptive == "adadelta") {
 
-        bias.grad <- (t(d_a[[n.layer + 1]]) %*% one_sample_size[[i]])
         weight.egs[[n.layer + 1]] <- weight.egs[[n.layer + 1]] * rho + (1-rho) * d_w[[n.layer + 1]]**2
         bias.egs[[n.layer + 1]]   <-   bias.egs[[n.layer + 1]] * rho + (1-rho) * bias.grad**2
         dw[[n.layer + 1]] <- sqrt(weight.es[[n.layer + 1]] + epsilon) /
@@ -569,7 +574,6 @@ dnnet.backprop.r <- function(n.hidden, w.ini,
         bias.es[[n.layer + 1]]   <-   bias.es[[n.layer + 1]] * rho + (1-rho) * db[[n.layer + 1]]**2
       } else if (learning.rate.adaptive == "adam") {
 
-        bias.grad <- (t(d_a[[n.layer + 1]]) %*% one_sample_size[[i]])
         mt.ind <- mt.ind + 1
         mt.w[[n.layer + 1]] <- mt.w[[n.layer + 1]] * beta1 + (1-beta1) * d_w[[n.layer + 1]]
         mt.b[[n.layer + 1]] <- mt.b[[n.layer + 1]] * beta1 + (1-beta1) * bias.grad
@@ -579,16 +583,15 @@ dnnet.backprop.r <- function(n.hidden, w.ini,
           (sqrt(vt.w[[n.layer + 1]] / (1-beta2**mt.ind)) + epsilon)
         db[[n.layer + 1]] <- learning.rate * mt.b[[n.layer + 1]] / (1-beta1**mt.ind) /
           (sqrt(vt.b[[n.layer + 1]] / (1-beta2**mt.ind)) + epsilon)
+      } else {
+
+        dw[[n.layer + 1]] <- d_w[[n.layer + 1]] * learning.rate
+        db[[n.layer + 1]] <- bias.grad * learning.rate
       }
       weight[[n.layer + 1]] <- weight[[n.layer + 1]] - dw[[n.layer + 1]] -
         l1.reg*((weight[[n.layer + 1]] > 0) - (weight[[n.layer + 1]] < 0)) -
         l2.reg*weight[[n.layer + 1]]
       bias[[n.layer + 1]] <- bias[[n.layer + 1]] - db[[n.layer + 1]]
-      if (learning.rate.adaptive == "adagrad") {
-
-        weight.ss[[n.layer + 1]] <- weight.ss[[n.layer + 1]] + weight[[n.layer + 1]]**2
-        bias.ss[[n.layer + 1]]   <- bias.ss[[n.layer + 1]]   + bias[[n.layer + 1]]**2
-      }
       for(j in n.layer:1) {
 
         d_h[[j]] <- d_a[[j + 1]] %*% t(weight[[j + 1]])
@@ -603,28 +606,21 @@ dnnet.backprop.r <- function(n.hidden, w.ini,
         #   l1.reg*((weight[[j]] > 0) - (weight[[j]] < 0)) -
         #   l2.reg*weight[[j]]
         # bias[[j]] <- bias[[j]] - learning.rate * (t(one_sample_size[[i]]) %*% d_a[[j]])
+        bias.grad <- (t(one_sample_size[[i]]) %*% d_a[[j]])
         if(learning.rate.adaptive == "momentum") {
 
-          if(i == 1 & k == 1) {
-
-            dw[[j]] <- d_w[[j]] * learning.rate
-            db[[j]] <- (t(one_sample_size[[i]]) %*% d_a[[j]]) * learning.rate
-          } else {
-
-            dw[[j]] <- d_w[[j]] * learning.rate + rho * last.dw[[j]]
-            db[[j]] <- (t(one_sample_size[[i]]) %*% d_a[[j]]) * learning.rate + rho * last.db[[j]]
-          }
-        } else if (learning.rate.adaptive == "constant") {
-
-          dw[[j]] <- d_w[[j]] * learning.rate
-          db[[j]] <- (t(one_sample_size[[i]]) %*% d_a[[j]]) * learning.rate
+          last.dw[[j]] <- last.dw[[j]] * rho + d_w[[j]] * learning.rate
+          last.db[[j]] <- last.db[[j]] * rho + bias.grad * learning.rate
+          dw[[j]] <- last.dw[[j]]
+          db[[j]] <- last.db[[j]]
         } else if (learning.rate.adaptive == "adagrad") {
 
+          weight.ss[[j]] <- weight.ss[[j]] + d_w[[j]]**2
+          bias.ss[[j]]   <- bias.ss[[j]]   + bias.grad**2
           dw[[j]] <- d_w[[j]]/sqrt(weight.ss[[j]] + epsilon) * learning.rate
-          db[[j]] <- (t(one_sample_size[[i]]) %*% d_a[[j]])/sqrt(bias.ss[[j]] + epsilon) * learning.rate
+          db[[j]] <- bias.grad/sqrt(bias.ss[[j]] + epsilon) * learning.rate
         } else if (learning.rate.adaptive == "adadelta") {
 
-          bias.grad <- (t(one_sample_size[[i]]) %*% d_a[[j]])
           weight.egs[[j]] <- weight.egs[[j]] * rho + (1-rho) * d_w[[j]]**2
           bias.egs[[j]]   <-   bias.egs[[j]] * rho + (1-rho) * bias.grad**2
           dw[[j]] <- sqrt(weight.es[[j]] + epsilon) / sqrt(weight.egs[[j]] + epsilon) * d_w[[j]]
@@ -633,23 +629,21 @@ dnnet.backprop.r <- function(n.hidden, w.ini,
           bias.es[[j]]   <-   bias.es[[j]] * rho + (1-rho) * db[[j]]**2
         } else if (learning.rate.adaptive == "adam") {
 
-          bias.grad <- (t(one_sample_size[[i]]) %*% d_a[[j]])
-          mt.ind <- mt.ind + 1
+          # mt.ind <- mt.ind + 1
           mt.w[[j]] <- mt.w[[j]] * beta1 + (1-beta1) * d_w[[j]]
           mt.b[[j]] <- mt.b[[j]] * beta1 + (1-beta1) * bias.grad
           vt.w[[j]] <- vt.w[[j]] * beta2 + (1-beta2) * d_w[[j]]**2
           vt.b[[j]] <- vt.b[[j]] * beta2 + (1-beta2) * bias.grad**2
           dw[[j]] <- learning.rate * mt.w[[j]] / (1-beta1**mt.ind) / (sqrt(vt.w[[j]] / (1-beta2**mt.ind)) + epsilon)
           db[[j]] <- learning.rate * mt.b[[j]] / (1-beta1**mt.ind) / (sqrt(vt.b[[j]] / (1-beta2**mt.ind)) + epsilon)
+        } else {
+
+          dw[[j]] <- d_w[[j]] * learning.rate
+          db[[j]] <- bias.grad * learning.rate
         }
         # browser()
         weight[[j]] <- weight[[j]] - dw[[j]] - l1.reg*((weight[[j]] > 0) - (weight[[j]] < 0)) - l2.reg*weight[[j]]
         bias[[j]]   <- bias[[j]]   - db[[j]]
-        if (learning.rate.adaptive == "adagrad") {
-
-          weight.ss[[j]] <- weight.ss[[j]] + weight[[j]]**2
-          bias.ss[[j]]   <- bias.ss[[j]]   + bias[[j]]**2
-        }
       }
     }
 
@@ -673,6 +667,7 @@ dnnet.backprop.r <- function(n.hidden, w.ini,
 
       if(is.na(loss[k]) | is.null(loss[k]) | is.nan(loss[k]) | is.infinite(loss[k])) {
 
+        loss <- loss[-k]
         break
       } else {
 

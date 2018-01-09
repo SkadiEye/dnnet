@@ -1,6 +1,7 @@
 #include <RcppArmadillo.h>
 #include <cmath>
 // [[Rcpp::depends(RcppArmadillo)]]
+// [[Rcpp::plugins("cpp11")]]
 using namespace Rcpp;
 using namespace arma;
 using namespace std;
@@ -176,6 +177,54 @@ SEXP return_field() {
   return(w);
 }
 
+// [[Rcpp::export]]
+mat transf() {
+
+  mat x = randu<mat>(5, 10);
+  mat y = x.transform([](double val) { return (val + 123.0);});
+
+  return(y);
+}
+
+// [[Rcpp::export]]
+void transftime1(int m, int n, int k) {
+
+  mat x = randu<mat>(m, n);
+  mat y(x.n_rows, x.n_cols);
+  for(int i = 0; i < k; i ++)
+    y = 1/(1+exp(-x));
+}
+
+// [[Rcpp::export]]
+void transftime2(int m, int n, int k) {
+
+  mat x = randu<mat>(m, n);
+  mat y(x.n_rows, x.n_cols);
+  for(int i = 0; i < k; i ++)
+    y = 1/(1+x.transform([](double x){return(exp(-x));}));
+}
+
+// [[Rcpp::export]]
+void transftime3(int m, int n, int k) {
+
+  mat x = randu<mat>(m, n);
+  mat y(x.n_rows, x.n_cols);
+  for(int i = 0; i < k; i ++)
+    y = x.transform([](double x){return(1/(1+exp(-x)));});
+}
+
+// [[Rcpp::export]]
+void string_test(string x) {
+
+  Rcout << x << "\n";
+  if(x == "aa") Rcout << "bb" << "\n";
+}
+
+// [[Rcpp::export]]
+void test_double() {
+  mat x = randu<mat>(5, 10);
+  Rcout << 0.001*conv_to<mat>::from(x>0.5) << "\n";
+}
 
 
 

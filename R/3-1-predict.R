@@ -22,5 +22,5 @@ setMethod("predict",
                             dimnames = list(NULL, object@label)))
             }
 
-            return((pred + object@norm$y.center)*object@norm$y.scale)
+            return(pred*object@norm$y.scale + object@norm$y.center)
           })

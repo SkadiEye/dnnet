@@ -42,4 +42,9 @@ x.m <- matrix(x, 100000, 1)
 x.mt <- matrix(x, 1, 100000)
 microbenchmark(x %*% x, x.mt %*% x.m)
 
+b <- diag(10)
+a <- {foreach(i = 1:10) %dopar% b[i, i]}
+unlist(a)
+
+
 

@@ -2,3 +2,7 @@
 ^\.Rproj\.user$
 ^data-raw$
 ^anRpackage$
+^src/*.o$
+^src/*.so$
+^src/*.dll$
+^.dropbox$
