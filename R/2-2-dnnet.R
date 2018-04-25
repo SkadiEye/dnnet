@@ -1,3 +1,43 @@
+###########################################################
+### Multilayer Perceptron Model for Regression or Classification
+
+#' Multilayer Perceptron Model for Regression or Classification
+#'
+#' Fit a Multilayer Perceptron Model for Regression or Classification
+#'
+#' @param train A \code{dnnetInput} object, the training set.
+#' @param validate A \code{dnnetInput} object, the validation set, optional.
+#' @param norm.x A boolean variable indicating whether to normalize the input matrix.
+#' @param norm.y A boolean variable indicating whether to normalize the response (if continuous).
+#' @param activate Activation Function. One of the following,
+#'  "sigmoid", "tanh", "relu", "prelu", "elu", "celu".
+#' @param learning.rate Initial learning rate, 0.001 by default; If "adam" is chosen as
+#'  an adaptive learning rate adjustment method, 0.1 by defalut.
+#' @param l1.reg weight for l1 regularization, optional.
+#' @param l2.reg weight for l2 regularization, optional.
+#' @param n.batch Batch size for batch gradient descent.
+#' @param n.epoch Maximum number of epochs.
+#' @param early.stop Indicate whether early stop is used (only if there exists a validation set).
+#' @param early.stop.det Number of epochs of increasing loss to determine the early stop.
+#' @param plot Indicate whether to plot the loss.
+#' @param accel "rcpp" to use the Rcpp version and "none" (default) to use the R version for back propagation.
+#' @param learning.rate.adaptive Adaptive learning rate adjustment methods, one of the following,
+#'  "constant", "adadelta", "adagrad", "momentum", "adam".
+#' @param epsilon A parameter used in Adagrad and Adam.
+#' @param beta1 A parameter used in Adam.
+#' @param beta2 A parameter used in Adam.
+#' @param loss.f Loss function of choice.
+#'
+#' @return Returns a \code{DnnModelObj} object.
+#'
+#' @importFrom stats runif
+#'
+#' @seealso
+#' \code{\link{dnnet-class}}\cr
+#' \code{\link{dnnetInput-class}}\cr
+#' \code{\link{actF}}
+#'
+#' @export
 dnnet <- function(train, validate = NULL,
                   norm.x = TRUE, norm.y = ifelse(is.factor(train@y), FALSE, TRUE),
                   activate = "elu", n.hidden = c(10, 10),
@@ -8,7 +48,7 @@ dnnet <- function(train, validate = NULL,
                   learning.rate.adaptive = c("constant", "adadelta", "adagrad", "momentum", "adam")[2],
                   rho = c(0.9, 0.95, 0.99, 0.999)[ifelse(learning.rate.adaptive == "momentum", 1, 3)],
                   epsilon = c(10**-10, 10**-8, 10**-6, 10**-4)[2],
-                  beta1 = 0.9, beta2 = 0.999, ...) {
+                  beta1 = 0.9, beta2 = 0.999, loss.f = ifelse(is.factor(train@y), "logit", "mse"), ...) {
 
   if(!class(train@x) %in% c("matrix", "data.frame"))
     stop("x has to be either a matrix or a data frame. ")
@@ -16,6 +56,11 @@ dnnet <- function(train, validate = NULL,
     stop("y has to be either a factor or a numeric vector. ")
   if(dim(train@x)[1] != length(train@y))
     stop("Dimensions of x and y do not match. ")
+
+  learning.rate
+  norm.y
+  rho
+  loss.f
 
   sample.size <- length(train@y)
   n.variable <- dim(train@x)[2]
@@ -110,7 +155,7 @@ dnnet <- function(train, validate = NULL,
                              activate,
                              n.epoch, n.batch, model.type,
                              learning.rate, l1.reg, l2.reg, early.stop.det,
-                             learning.rate.adaptive, rho, epsilon, beta1, beta2))
+                             learning.rate.adaptive, rho, epsilon, beta1, beta2, loss.f))
     } else {
 
       try(result <- backprop(n.hidden, w.ini,
@@ -118,7 +163,7 @@ dnnet <- function(train, validate = NULL,
                              activate,
                              n.epoch, n.batch, model.type,
                              learning.rate, l1.reg, l2.reg, early.stop.det,
-                             learning.rate.adaptive, rho, epsilon, beta1, beta2))
+                             learning.rate.adaptive, rho, epsilon, beta1, beta2, loss.f))
     }
   } else {
 
@@ -128,7 +173,7 @@ dnnet <- function(train, validate = NULL,
                                      get(activate), get(paste(activate, "_", sep = '')),
                                      n.epoch, n.batch, model.type,
                                      learning.rate, l1.reg, l2.reg, early.stop.det,
-                                     learning.rate.adaptive, rho, epsilon, beta1, beta2))
+                                     learning.rate.adaptive, rho, epsilon, beta1, beta2, loss.f))
     } else {
 
       try(result <- dnnet.backprop.r(n.hidden, w.ini,
@@ -136,11 +181,11 @@ dnnet <- function(train, validate = NULL,
                                      get(activate), get(paste(activate, "_", sep = '')),
                                      n.epoch, n.batch, model.type,
                                      learning.rate, l1.reg, l2.reg, early.stop.det,
-                                     learning.rate.adaptive, rho, epsilon, beta1, beta2))
+                                     learning.rate.adaptive, rho, epsilon, beta1, beta2, loss.f))
     }
   }
 
-  if(plot) try(plot(result[[3]][0:result[[4]]+1]*norm$y.scale**2, ylab = "loss"))
+  if(!is.null(validate) & plot) try(plot(result[[3]][0:result[[4]]+1]*norm$y.scale**2, ylab = "loss"))
   if(is.na(result[[3]][1]) | is.nan(result[[3]][1])) {
 
     min.loss <- Inf
@@ -170,6 +215,8 @@ dnnet <- function(train, validate = NULL,
   }
 }
 
+#' Back Propagation using gpuR (nor working)
+NULL
 dnnet.backprop.gpu <- function(n.hidden, w.ini,
                                x, y, w, valid, x.valid, y.valid, w.valid,
                                activate, activate_, n.epoch, n.batch, model.type,
@@ -355,11 +402,13 @@ dnnet.backprop.gpu <- function(n.hidden, w.ini,
   return(list(best_weight_, best_bias_, loss, length(loss)-1))
 }
 
+#' Back Propagation
+NULL
 dnnet.backprop.r <- function(n.hidden, w.ini,
                              x, y, w, valid, x.valid, y.valid, w.valid,
                              activate, activate_, n.epoch, n.batch, model.type,
                              learning.rate, l1.reg, l2.reg, early.stop.det,
-                             learning.rate.adaptive, rho, epsilon, beta1, beta2) {
+                             learning.rate.adaptive, rho, epsilon, beta1, beta2, loss.f) {
 
   if(valid) {
 
@@ -399,6 +448,9 @@ dnnet.backprop.r <- function(n.hidden, w.ini,
       bias[[i]]   <- matrix(stats::runif(n.hidden[i], -1, 1), 1, n.hidden[i]) * w.ini / 2
     }
   }
+
+  best.weight <- weight
+  best.bias <- bias
 
   dw <- list()
   db <- list()
@@ -544,10 +596,16 @@ dnnet.backprop.r <- function(n.hidden, w.ini,
       }
 
       y.pi <- h[[n.layer]] %*% weight[[n.layer + 1]] + one_sample_size[[i]] %*% bias[[n.layer + 1]]
-      if(model.type == "classification")
+      # if(model.type == "classification")
+      if(loss.f == "logit")
         y.pi <- 1/(1 + exp(-y.pi))
+      if(loss.f == "rmsle") {
+        y.pi <- relu(y.pi)
+        d_a[[n.layer + 1]] <- -(log(yi+1) - log(y.pi+1)) / (y.pi+1) * (y.pi > 0) * wi / sum(wi)
+      } else {
+        d_a[[n.layer + 1]] <- -(yi - y.pi) * wi / sum(wi)
+      }
 
-      d_a[[n.layer + 1]] <- -(yi - y.pi) * wi / sum(wi)
       d_w[[n.layer + 1]] <- t(h[[n.layer]]) %*% d_a[[n.layer + 1]]
       bias.grad <- (t(d_a[[n.layer + 1]]) %*% one_sample_size[[i]])
       if(learning.rate.adaptive == "momentum") {
@@ -658,11 +716,15 @@ dnnet.backprop.r <- function(n.hidden, w.ini,
         }
       }
       pred <- (pred %*% weight[[n.layer + 1]] + valid_sample_size %*% bias[[n.layer + 1]])[, 1]
-      if(model.type == "classification") {
+      # if(model.type == "classification") {
+      if(loss.f == "logit") {
         pred <- 1/(exp(-pred) + 1)
         loss[k] <- -sum(w.valid * (y.valid * log(pred) + (1-y.valid) * log(1-pred))) / sum(w.valid)
-      } else {
+      } else if(loss.f == "mse") {
         loss[k] <- sum(w.valid * (y.valid - pred)**2) / sum(w.valid)
+      } else if(loss.f == "rmsle") {
+        pred <- relu(pred)
+        loss[k] <- sum(w.valid * (log(y.valid+1) - log(pred+1))**2) / sum(w.valid)
       }
 
       if(is.na(loss[k]) | is.null(loss[k]) | is.nan(loss[k]) | is.infinite(loss[k])) {

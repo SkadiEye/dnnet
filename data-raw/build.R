@@ -133,7 +133,7 @@ microbenchmark(dnnet(split.dat$train, validate = split.dat$valid,
 n <- 1000
 p <- 10
 x <- matrix(rnorm(n*p), n, p)
-y <- rowSums(x) + rnorm(n)
+y <- exp(rowSums(x[, 1:2])/2) - 1
 dat <- importDnnet(x, y)
 split.dat <- splitDnnet(dat, "bootstrap")
 
@@ -142,11 +142,11 @@ par(mfrow = c(1, 2))
 set.seed(1000)
 (a <- Sys.time())
 dnn.mod <- dnnet(split.dat$train, validate = split.dat$valid,
-                 norm.x = TRUE, norm.y = TRUE,
-                 activate = "elu", n.hidden = c(10, 10, 10),
-                 l1.reg = 0, l2.reg = 0, n.batch = 10, n.epoch = 100,
+                 norm.x = TRUE, norm.y = FALSE,
+                 activate = "relu", n.hidden = c(10, 5, 3),
+                 l1.reg = 10**-4, l2.reg = 0, n.batch = 100, n.epoch = 100,
                  early.stop = TRUE, early.stop.det = 100, plot = TRUE, accel = "rcpp",
-                 learning.rate.adaptive = "adagrad")
+                 learning.rate.adaptive = "adam", loss.f = "rmsle")
 (b <- Sys.time() - a)
 (a <- Sys.time())
 dnn.mod <- dnnet(split.dat$train, validate = split.dat$valid,

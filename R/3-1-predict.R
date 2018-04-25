@@ -1,3 +1,18 @@
+###########################################################
+### Predict using dnnet objects
+
+#' @describeIn Predict new observations using \code{dnnet} object.
+#'
+#' @param object A \code{dnnet} object.
+#' @param newData A matrix with the same number of columns in the input data.
+#' @param type Consistent with model.type in the \code{object}.
+#'
+#' @return A numeric vector for regression or a matrix of probabilities for each class for classification.
+#'
+#' @seealso
+#' \code{\link{dnnet-class}}\cr
+#'
+#' @export
 setMethod("predict",
           "dnnet",
           function(object, newData, type, ...) {

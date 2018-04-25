@@ -1,6 +1,7 @@
 ^.*\.Rproj$
 ^\.Rproj\.user$
 ^data-raw$
+^dnnet$
 ^anRpackage$
 ^src/*.o$
 ^src/*.so$

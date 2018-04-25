@@ -1,3 +1,14 @@
+###########################################################
+### Define generic functions: show, print, '[', '$', plot
+
+#################################
+#### dnnetInput class
+
+#' @describeIn dnnetInput Method to show \code{dnnetInput} object.
+#'
+#' @param object A \code{dnnetInput} object.
+#'
+#' @export
 setMethod("show",
           "dnnetInput",
           function(object) {
@@ -11,6 +22,14 @@ setMethod("show",
             print(object@w[1:6])
           })
 
+#################################
+#### dnnet class
+
+#' @describeIn dnnet Method to show \code{dnnet} object.
+#'
+#' @param object A \code{dnnet} object.
+#'
+#' @export
 setMethod("show",
           "dnnet",
           function(object) {
