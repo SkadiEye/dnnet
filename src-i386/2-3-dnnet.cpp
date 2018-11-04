@@ -1,6 +1,7 @@
 #include <RcppArmadillo.h>
 #include <cmath>
 // [[Rcpp::depends(RcppArmadillo)]]
+// [[Rcpp::plugins("cpp11")]]
 using namespace Rcpp;
 using namespace arma;
 using namespace std;
@@ -12,10 +13,8 @@ SEXP backprop(NumericVector n_hidden, double w_ini, // List weight, List bias,
               std::string activ,
               int n_epoch, int n_batch, std::string model_type,
               double learning_rate, double l1_reg, double l2_reg, int early_stop_det,
-              std::string learning_rate_adaptive, double rho, double epsilon, double beta1, double beta2) {
-
-  Rcout << activ << learning_rate_adaptive << model_type << "\n";
-  if(activ == "elu") Rcout << 1.0 << "\n";
+              std::string learning_rate_adaptive, double rho, double epsilon, double beta1, double beta2,
+              std::string loss_f) {
 
   mat x_ = as<mat>(x);
   vec y_ = as<vec>(y);
@@ -86,6 +85,9 @@ SEXP backprop(NumericVector n_hidden, double w_ini, // List weight, List bias,
       db(i) = vec(n_hidden[i], fill::zeros);
     }
   }
+
+  best_weight = weight_;
+  best_bias = bias_;
 
   if(learning_rate_adaptive == "momentum") {
 
@@ -207,14 +209,23 @@ SEXP backprop(NumericVector n_hidden, double w_ini, // List weight, List bias,
         else if(activ == "tanh")  h(j) = tanh(a(j));
         else if(activ == "relu")  h(j) = a(j) % (a(j) > 0);
         else if(activ == "prelu") h(j) = a(j) % (a(j) > 0) + (a(j) <= 0) % a(j)*0.2;
-        else if(activ == "elu")   h(j) = a(j) % (a(j) > 0) + (a(j) <= 0) % (exp(a(j))-1);
-        else if(activ == "celu")  h(j) = a(j) % (a(j) > 0) + (a(j) <= 0) % (exp(a(j))-1);
+        else if(activ == "elu")   h(j) = a(j) % (a(j) > 0) + exp((a(j) <= 0) % a(j)) - 1;
+        else if(activ == "celu")  h(j) = a(j) % (a(j) > 0) + exp((a(j) <= 0) % a(j)) - 1;
       }
       vec y_pi = h(n_layer - 1) * weight_(n_layer) + one_sample_size * bias_(n_layer);
-      if(model_type == "classification")
+      //if(model_type == "classification")
+      if(loss_f == "logit")
         y_pi = 1 / (1 + exp(-y_pi));
+      if(loss_f == "rmsle") {
 
-      d_a(n_layer) = -(yi_ - y_pi) % wi_ / sum(wi_);
+        y_pi = y_pi % (y_pi > 0);
+        d_a(n_layer) = -(log(yi_ + 1) - log(y_pi + 1)) /
+          (y_pi + 1) % y_pi.transform([](double x){return(1*(x > 0));}) % wi_ / sum(wi_);
+      } else {
+
+        d_a(n_layer) = -(yi_ - y_pi) % wi_ / sum(wi_);
+      }
+
       d_w(n_layer) = h(n_layer - 1).t() * d_a(n_layer);
       vec bias_grad = d_a(n_layer).t() * one_sample_size;
       if(learning_rate_adaptive == "momentum") {
@@ -225,8 +236,8 @@ SEXP backprop(NumericVector n_hidden, double w_ini, // List weight, List bias,
         db(n_layer) = last_db(n_layer);
       } else if (learning_rate_adaptive == "adagrad") {
 
-        weight_ss(n_layer) <- weight_ss(n_layer) + square(d_w(n_layer));
-        bias_ss(n_layer)   <- bias_ss(n_layer)   + square(bias_grad);
+        weight_ss(n_layer) = weight_ss(n_layer) + square(d_w(n_layer));
+        bias_ss(n_layer)   = bias_ss(n_layer)   + square(bias_grad);
         dw(n_layer) = d_w(n_layer)/sqrt(weight_ss(n_layer) + epsilon) * learning_rate;
         db(n_layer) = bias_grad   /sqrt(bias_ss(n_layer)   + epsilon) * learning_rate;
       } else if (learning_rate_adaptive == "adadelta") {
@@ -240,18 +251,18 @@ SEXP backprop(NumericVector n_hidden, double w_ini, // List weight, List bias,
       } else if (learning_rate_adaptive == "adam") {
 
         adam_ind = adam_ind + 1;
-        mt_w(n_layer) <- mt_w(n_layer) * beta1 + (1-beta1) * d_w(n_layer);
-        mt_b(n_layer) <- mt_b(n_layer) * beta1 + (1-beta1) * bias_grad;
-        vt_w(n_layer) <- vt_w(n_layer) * beta2 + (1-beta2) * square(d_w(n_layer));
-        vt_b(n_layer) <- vt_b(n_layer) * beta2 + (1-beta2) * square(bias_grad);
-        dw(n_layer) <- learning_rate / (1-pow(beta1, adam_ind)) * mt_w(n_layer) / (sqrt(vt_w(n_layer) / (1-pow(beta2, adam_ind))) + epsilon);
-        db(n_layer) <- learning_rate / (1-pow(beta1, adam_ind)) * mt_b(n_layer) / (sqrt(vt_b(n_layer) / (1-pow(beta2, adam_ind))) + epsilon);
+        mt_w(n_layer) = mt_w(n_layer) * beta1 + (1-beta1) * d_w(n_layer);
+        mt_b(n_layer) = mt_b(n_layer) * beta1 + (1-beta1) * bias_grad;
+        vt_w(n_layer) = vt_w(n_layer) * beta2 + (1-beta2) * square(d_w(n_layer));
+        vt_b(n_layer) = vt_b(n_layer) * beta2 + (1-beta2) * square(bias_grad);
+        dw(n_layer) = learning_rate / (1-pow(beta1, adam_ind)) * mt_w(n_layer) / (sqrt(vt_w(n_layer) / (1-pow(beta2, adam_ind))) + epsilon);
+        db(n_layer) = learning_rate / (1-pow(beta1, adam_ind)) * mt_b(n_layer) / (sqrt(vt_b(n_layer) / (1-pow(beta2, adam_ind))) + epsilon);
       } else {
 
         dw(n_layer) = d_w(n_layer) * learning_rate;
         db(n_layer) = bias_grad    * learning_rate;
       }
-      weight_(n_layer) = weight_(n_layer) - dw(n_layer) - l1_reg * ((weight_(n_layer) > 0) - (weight_(n_layer) < 0)) - l2_reg * (weight_(n_layer));
+      weight_(n_layer) = weight_(n_layer) - dw(n_layer) - l1_reg * (conv_to<mat>::from(weight_(n_layer) > 0) - conv_to<mat>::from(weight_(n_layer) < 0)) - l2_reg * (weight_(n_layer));
       bias_(n_layer)   = bias_(n_layer)   - db(n_layer);
       for(int j = n_layer - 1; j >= 0; j--) {
 
@@ -265,8 +276,8 @@ SEXP backprop(NumericVector n_hidden, double w_ini, // List weight, List bias,
           d_a(j) = d_h(j) % (1 - square(d_a(j)));
         } else if(activ == "relu") d_a(j) = d_h(j) % a(j).transform([](double x){return(1*(x > 0));});
         else if(activ == "prelu")  d_a(j) = d_h(j) % a(j).transform([](double x){return(1*(x > 0) + 0.2*(x <= 0));});
-        else if(activ == "elu")    d_a(j) = d_h(j) % ((a(j) > 0) + (a(j) <= 0) % exp(a(j)));
-        else if(activ == "celu")   d_a(j) = d_h(j) % ((a(j) > 0) + (a(j) <= 0) % exp(a(j)));
+        else if(activ == "elu")    d_a(j) = d_h(j) % ((a(j) > 0) + (a(j) <= 0) % exp((a(j) <= 0) % a(j)));
+        else if(activ == "celu")   d_a(j) = d_h(j) % ((a(j) > 0) + (a(j) <= 0) % exp((a(j) <= 0) % a(j)));
 
         if(j > 0) {
           d_w(j) = h(j - 1).t() * d_a(j);
@@ -282,8 +293,8 @@ SEXP backprop(NumericVector n_hidden, double w_ini, // List weight, List bias,
           db(j) = bias_grad * learning_rate + rho * last_db(j);
         } else if (learning_rate_adaptive == "adagrad") {
 
-          weight_ss(j) <- weight_ss(j) + square(d_w(j));
-          bias_ss(j)   <- bias_ss(j)   + square(bias_grad);
+          weight_ss(j) = weight_ss(j) + square(d_w(j));
+          bias_ss(j)   = bias_ss(j)   + square(bias_grad);
           dw(j) = d_w(j)   /sqrt(weight_ss(j) + epsilon) * learning_rate;
           db(j) = bias_grad/sqrt(bias_ss(j)   + epsilon) * learning_rate;
         } else if (learning_rate_adaptive == "adadelta") {
@@ -297,18 +308,18 @@ SEXP backprop(NumericVector n_hidden, double w_ini, // List weight, List bias,
         } else if (learning_rate_adaptive == "adam") {
 
           adam_ind ++;
-          mt_w(j) <- mt_w(j) * beta1 + (1-beta1) * d_w(j);
-          mt_b(j) <- mt_b(j) * beta1 + (1-beta1) * bias_grad;
-          vt_w(j) <- vt_w(j) * beta2 + (1-beta2) * square(d_w(j));
-          vt_b(j) <- vt_b(j) * beta2 + (1-beta2) * square(bias_grad);
-          dw(j) <- learning_rate / (1-pow(beta1, adam_ind)) * mt_w(j) / (sqrt(vt_w(j) / (1-pow(beta2, adam_ind))) + epsilon);
-          db(j) <- learning_rate / (1-pow(beta1, adam_ind)) * mt_b(j) / (sqrt(vt_b(j) / (1-pow(beta2, adam_ind))) + epsilon);
+          mt_w(j) = mt_w(j) * beta1 + (1-beta1) * d_w(j);
+          mt_b(j) = mt_b(j) * beta1 + (1-beta1) * bias_grad;
+          vt_w(j) = vt_w(j) * beta2 + (1-beta2) * square(d_w(j));
+          vt_b(j) = vt_b(j) * beta2 + (1-beta2) * square(bias_grad);
+          dw(j) = learning_rate / (1-pow(beta1, adam_ind)) * mt_w(j) / (sqrt(vt_w(j) / (1-pow(beta2, adam_ind))) + epsilon);
+          db(j) = learning_rate / (1-pow(beta1, adam_ind)) * mt_b(j) / (sqrt(vt_b(j) / (1-pow(beta2, adam_ind))) + epsilon);
         } else {
 
           dw(j) = d_w(j)    * learning_rate;
           db(j) = bias_grad * learning_rate;
         }
-        weight_(j) = weight_(j) - dw(j) - l1_reg * ((weight_(j) > 0) - (weight_(j) < 0)) - l2_reg * (weight_(j));
+        weight_(j) = weight_(j) - dw(j) - l1_reg * (conv_to<mat>::from(weight_(j) > 0) - conv_to<mat>::from(weight_(j) < 0)) - l2_reg * (weight_(j));
         bias_(j)   = bias_(j)   - db(j);  // column mean
       }
     }
@@ -330,17 +341,22 @@ SEXP backprop(NumericVector n_hidden, double w_ini, // List weight, List bias,
         else if(activ == "tanh")  pred = tanh(pred);
         else if(activ == "relu")  pred = pred % (pred > 0);
         else if(activ == "prelu") pred = pred % (pred > 0) + (pred <= 0) % pred*0.2;
-        else if(activ == "elu")   pred = pred % (pred > 0) + (pred <= 0) % (exp(pred)-1);
-        else if(activ == "celu")  pred = pred % (pred > 0) + (pred <= 0) % (exp(pred)-1);
+        else if(activ == "elu")   pred = pred % (pred > 0) + exp((pred <= 0) % pred) - 1;
+        else if(activ == "celu")  pred = pred % (pred > 0) + exp((pred <= 0) % pred) - 1;
       }
       y_pred = pred * weight_(n_layer) + one_sample_size * bias_(n_layer).t();
-      if(model_type == "classification") {
+      //if(model_type == "classification") {
+      if(loss_f == "logit") {
 
         y_pred = 1 / (1 + exp(-y_pred));
         loss[k] = -sum(w_valid_ % (y_valid_ % log(y_pred) + (1-y_valid_) % log(1-y_pred))) / sum(w_valid_);
-      } else {
+      } else if(loss_f == "mse") {
 
         loss[k] = sum(w_valid_ % pow(y_valid_ - y_pred, 2)) / sum(w_valid_);
+      } else if(loss_f == "rmsle") {
+
+        y_pred = y_pred % (y_pred > 0);
+        loss[k] = sum(w_valid_ % pow(log(y_valid_ + 1) - log(y_pred + 1), 2)) / sum(w_valid_);
       }
 
       if(!is_finite(loss[k])) {

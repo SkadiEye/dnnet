@@ -1,7 +1,7 @@
 Package: dnnet
 Type: Package
 Title: Deep Neural Nets (Multilayer Perceptrons)
-Version: 0.1.3
+Version: 0.1.4
 Author@R: person("Xinlei", "Mi", email = "xlmi@ufl.edu", role = c("aut", "cre"))
 Author: Xinlei Mi [aut, cre]
 Maintainer: Xinlei Mi <xlmi@ufl.edu>
@@ -9,6 +9,7 @@ Description: Multilayer Perceptron Models for Regression or Classification
 License: GPL (>= 2)
 Encoding: UTF-8
 LazyData: true
-Depends: R (>= 3.0.0)
+Depends: R (>= 3.0.0), methods
 LinkingTo: Rcpp, RcppArmadillo
 Imports: Rcpp
+RoxygenNote: 6.0.1

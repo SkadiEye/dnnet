@@ -82,7 +82,7 @@ dnnet <- function(train, validate = NULL,
   norm <- list(x.center = rep(0, n.variable),
                x.scale = rep(1, n.variable),
                y.center = 0, y.scale = 1)
-  if(norm.x) {
+  if(norm.x && (sum(apply(train@x, 2, sd) == 0) == 0)) {
 
     train@x <- scale(train@x)
     norm$x.center <- attr(train@x, "scaled:center")

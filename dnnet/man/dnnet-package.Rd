@@ -3,32 +3,32 @@
 \alias{dnnet}
 \docType{package}
 \title{
-  A short title line describing what the package does
+\packageTitle{dnnet}
 }
 \description{
-  A more detailed description of what the package does. A length
-  of about one to five lines is recommended.
+\packageDescription{dnnet}
 }
 \details{
-  This section should provide a more detailed overview of how to use the
-  package, including the most important functions.
+
+The DESCRIPTION file:
+\packageDESCRIPTION{dnnet}
+\packageIndices{dnnet}
+~~ An overview of how to use the package, including the most important functions ~~
 }
 \author{
-Your Name, email optional.
+\packageAuthor{dnnet}
 
-Maintainer: Your Name <your@email.com>
+Maintainer: \packageMaintainer{dnnet}
 }
 \references{
-  This optional section can contain literature or other references for
-  background information.
+~~ Literature or other references for background information ~~
 }
+~~ Optionally other standard keywords, one per line, from file KEYWORDS in the R documentation directory ~~
 \keyword{ package }
 \seealso{
-  Optional links to other man pages
+~~ Optional links to other man pages, e.g. ~~
+~~ \code{\link[<pkg>:<pkg>-package]{<pkg>}} ~~
 }
 \examples{
-  \dontrun{
-     ## Optional simple examples of the most important functions
-     ## These can be in \dontrun{} and \donttest{} blocks.   
-  }
+~~ simple examples of the most important functions ~~
 }
